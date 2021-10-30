@@ -25,7 +25,7 @@ const deployedTradeableCashflowOption = require("../deployments/rinkeby/Tradeabl
 const tradeableCashflowOptionAddress = deployedTradeableCashflowOption.address;
 
 //address of owner of option here..need to change this
-const _sender = "0x5966aa11c794893774a382d9a19743B8be6BFFd1";
+const _sender = "0x9421FE8eCcAfad76C3A9Ec8f9779fAfA05A836B3";
 
 //create a flow
 async function main() {
@@ -54,27 +54,18 @@ async function main() {
         //     int256 strikePrice)  
 
         
-        let txData = (await tradeableCashflowOption.methods.exerciseOption(
-            "0x01be23585060835e02b77ef475b0cc51aa1e0709", //LINK rinkeby token
-            web3.utils.toWei("1", "ether"), //1 unit
-            18, //link has 18 decimals
-            "0xd8bD0a1cB028a31AA859A21A3758685a95dE4623", //LINK/USD price feed
-            8, //price feed will return 8 decimal value
-            "38580246913580", //~100 per mo
-            1635611400,  //this is 1125am on 10/30,
-            web3.utils.toWei("28", "ether") //strike price of this call option is $28
-        ).encodeABI());
+    let txData = (await tradeableCashflowOption.methods.exerciseOption().encodeABI());
 
   
     //send the tx to the tradeableCashflowOption
       let tx = {
         'to': tradeableCashflowOptionAddress,
-        'gas': 3000000,
+        'gas': 3500000,
         'nonce': nonce,
         'data': txData
       }
   
-      let signedTx = await web3.eth.accounts.signTransaction(tx, process.env.RINKEBY_RECIEVER_PRIVATE_KEY);
+      let signedTx = await web3.eth.accounts.signTransaction(tx, process.env.RINKEBY_DEPLOYER_PRIVATE_KEY);
   
       await web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(error, hash) {
         if (!error) {

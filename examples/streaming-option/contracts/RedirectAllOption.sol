@@ -125,7 +125,7 @@ contract RedirectAllOption is SuperAppBase {
     
         //only the receiver (the seller of the option and owner of the NFT) can activate the option 
         require(_receiver == msg.sender);
-        _underlyingAsset = underlyingAsset;
+        _underlyingAsset = ERC20(underlyingAsset);
         _underlyingAmount = underlyingAmount;
         _underlyingDecimals = underlyingDecimals;
         _priceFeed = priceFeed;
@@ -169,7 +169,7 @@ contract RedirectAllOption is SuperAppBase {
     //enables the caller to exercise the option 
     function exerciseOption() external {
         //start function by checking if option is expired - if it is, we need to deactivate the option
-         if (block.timestamp <= _expirationDate) {
+         if (block.timestamp >= _expirationDate) {
             //transfer underlying asset back to owner and cancel flows 
             _deactivateOption();
         }
@@ -199,19 +199,22 @@ contract RedirectAllOption is SuperAppBase {
         require(currentPrice >= _strikePrice);
         require(currentFlowRate >= _requiredFlowRate);
         
-        
-        //NOTE - need to typecast
-        _DAI.transfer(_receiver, uint256(_strikePrice));
-        _underlyingAsset.transferFrom(address(this), msg.sender, _underlyingAmount);
-        
-        //set option to inactive and not ready 
-        optionActive = false;
-        optionReady = false;
-        
+        //try approving dai here, then calling settle
+        _DAI.approve(address(this), uint256(_strikePrice));
+
+        _settleOption(msg.sender);        
+        }
+    }
+
+        function _settleOption(address _caller) internal {
+            _DAI.transferFrom(_caller, _receiver, uint256(_strikePrice));
+            _underlyingAsset.transfer(_caller, _underlyingAmount);
+
+             optionActive = false;
+             optionReady = false;
         }
        
             
-    }
 
         
     /**************************************************************************
@@ -349,8 +352,9 @@ contract RedirectAllOption is SuperAppBase {
         returns (bytes memory newCtx)
     {
         ISuperfluid.Context memory decompiledContext = _host.decodeCtx(_ctx);
+        address senderAddress = decompiledContext.msgSender;
 
-        (, int96 initialFlowRate,,) = _cfa.getFlow(_acceptedToken, decompiledContext.msgSender, address(this));
+        (, int96 initialFlowRate,,) = _cfa.getFlow(_acceptedToken, senderAddress, address(this));
 
         if (initialFlowRate >= _requiredFlowRate && optionReady == true) {
             _activateOption();

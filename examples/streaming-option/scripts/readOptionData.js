@@ -58,7 +58,6 @@ async function main() {
         let strikePrice = await tradeableCashflowOption.methods._strikePrice().call();
         let optionReady = await tradeableCashflowOption.methods.optionReady().call();
         let optionActive = await tradeableCashflowOption.methods.optionActive().call();
-        let initialRate = await tradeableCashflowOption.methods.initialRate().call();
         let underlyingAmount = await tradeableCashflowOption.methods._underlyingAmount().call();
 
 
@@ -70,9 +69,6 @@ async function main() {
         console.log(`Strike Price: ${strikePrice}`);
         console.log(`Option Ready? ${optionReady}`);
         console.log(`Option Active? ${optionActive}`);
-
-        console.log(`Initial Rate: ${initialRate}`);
-
 
       }
     
