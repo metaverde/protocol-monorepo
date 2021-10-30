@@ -1,5 +1,7 @@
  //SPDX-License-Identifier: MIT
 pragma solidity ^0.7.0;
+pragma experimental ABIEncoderV2;
+
 
 import {RedirectAllOption, ISuperToken, IConstantFlowAgreementV1, ISuperfluid} from "./RedirectAllOption.sol";
 

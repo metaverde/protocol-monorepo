@@ -33,17 +33,20 @@ contract RedirectAllOption is SuperAppBase {
     //underlyingAsset for the option 
     ERC20 public _underlyingAsset;
     //the amount of the underlyingAsset deposited
-    uint256 _underlyingAmount;
+    uint256 public _underlyingAmount;
     //decimals in underlyingAsset
-    uint8 _underlyingDecimals;
+    uint8 public _underlyingDecimals;
     
     //asset that can be used to purchase _underlyingAsset
-    //this needs to be hardcoded to DAI because we will assume that price feeds will be denominated in USD on chainlink
+    //this needs to be hardcoded to rinkeby DAI because we will assume that price feeds will be denominated in USD on chainlink
     //you could probably get more advanced with this, but trying to keep it simple
-    ERC20 public _DAI = ERC20(0x88271d333C72e51516B67f5567c728E702b3eeE8);
+    ERC20 public _DAI = ERC20(0x15F0Ca26781C3852f8166eD2ebce5D18265cceb7);
     
     //address of the price feed used for the _underlyingAsset
-    AggregatorV3Interface internal _priceFeed;
+    AggregatorV3Interface public _priceFeed;
+
+    //decimals of value returned by the priceFeed
+    uint8 public _priceFeedDecimals;
     //strike price of the option. The option may be exercised if the current price is > that _strikePrice prior to the expirationDate & flowRate into the app is > required rate
     int256 public _strikePrice;
     //required flow rate to exercise the option
@@ -61,9 +64,9 @@ contract RedirectAllOption is SuperAppBase {
     IConstantFlowAgreementV1 private _cfa; // the stored constant flow agreement class address
     
     //the Super token used to pay for option premium (sent directly to the NFT and redirected to owner of the NFT)
-    ISuperToken private _acceptedToken; // accepted token
+    ISuperToken public _acceptedToken; // accepted token
     //receiver of this NFT - the seller of the option 
-    address private _receiver;
+    address public _receiver;
 
     constructor(
         
@@ -106,11 +109,16 @@ contract RedirectAllOption is SuperAppBase {
     //the first of which handles the approval, and the second of which transfers funds + activates
     
     //this function sets the params of the option and sets it as ready to be activated
+    //need to find a way to properly convert decimals 
+    //we have decimals of returned value of price feed, decimals of underlying, and decimals on DAI
+    //DAI is hardcoded in this example, so don't have to worry about that for now
+    //we need to align the decimal value of price feed return and underlying asset
     function createOption(
-            ERC20 underlyingAsset, 
+            ERC20 underlyingAsset,
             uint256 underlyingAmount, 
             uint8 underlyingDecimals,
             AggregatorV3Interface priceFeed, 
+            uint8 priceFeedDecimals,
             int96 requiredFlowRate, 
             uint256 expirationDate, 
             int256 strikePrice) external {
@@ -121,6 +129,7 @@ contract RedirectAllOption is SuperAppBase {
         _underlyingAmount = underlyingAmount;
         _underlyingDecimals = underlyingDecimals;
         _priceFeed = priceFeed;
+        _priceFeedDecimals = priceFeedDecimals;
         _strikePrice = strikePrice;
         _requiredFlowRate = requiredFlowRate;
         _expirationDate = expirationDate;
@@ -135,7 +144,7 @@ contract RedirectAllOption is SuperAppBase {
     //activates the option - called in callbacks
     function _activateOption() internal {
         //send underlying assets to the contract 
-        _underlyingAsset.transferFrom(msg.sender, address(this), _underlyingAmount);
+        _underlyingAsset.transferFrom(_receiver, address(this), _underlyingAmount);
         //set option as active 
         optionActive = true;
         //consider adding additional functionality around expirationDate here as well
@@ -169,6 +178,21 @@ contract RedirectAllOption is SuperAppBase {
         //exercise the option        
         //get current price of the underlying asset using chainlink 
         (, int currentPrice,,,) = _priceFeed.latestRoundData();
+
+        //adjust current price if the price feed decimals and underlying decimals are different
+        //this is important for comparison between current price and strike price
+        if (_priceFeedDecimals != _underlyingDecimals) {
+            uint8 _adjustedDecimals = _underlyingDecimals - _priceFeedDecimals;
+
+            if (_adjustedDecimals < 0) {
+                //if _adjusted decimals is negative, adjust so that it's positive
+                _adjustedDecimals = -_adjustedDecimals;
+            }
+
+            currentPrice = int(uint(currentPrice) * (10 ** _adjustedDecimals));
+            //need to use safemath on all of this shit
+            // currentPrice = int(_currentPrice);
+        }
         //get flow rate of the flow that the caller of this function is sending to the contract 
         (, int96 currentFlowRate,,) = _cfa.getFlow(_acceptedToken, msg.sender, address(this));
         //require that flowRate is sufficient & option is in the money for option to be exercises
@@ -309,6 +333,9 @@ contract RedirectAllOption is SuperAppBase {
      * SuperApp callbacks
      *************************************************************************/
 
+    int96 public initialRate;
+    address public _senderAddress;
+
     function afterAgreementCreated(
         ISuperToken _superToken,
         address _agreementClass,
@@ -322,8 +349,14 @@ contract RedirectAllOption is SuperAppBase {
         onlyHost
         returns (bytes memory newCtx)
     {
-        (, int96 initialFlowRate,,) = _cfa.getFlow(_acceptedToken, msg.sender, address(this));
-        
+        ISuperfluid.Context memory decompiledContext;
+        decompiledContext = _host.decodeCtx(_ctx);
+        address senderAddress = decompiledContext.msgSender;
+        _senderAddress = senderAddress;
+
+        (, int96 initialFlowRate,,) = _cfa.getFlow(_acceptedToken, senderAddress, address(this));
+        initialRate = initialFlowRate;
+
         if (initialFlowRate >= _requiredFlowRate && optionReady == true) {
             _activateOption();
         }
@@ -410,13 +443,13 @@ contract RedirectAllOption is SuperAppBase {
     }
 
     modifier onlyHost() {
-        require(msg.sender == address(_host));
+        require(msg.sender == address(_host), "RedirectAll: support only one host");
         _;
     }
 
     modifier onlyExpected(ISuperToken superToken, address agreementClass) {
-        require(_isSameToken(superToken));
-        require(_isCFAv1(agreementClass));
+        require(_isSameToken(superToken), "RedirectAll: not accepted token");
+        require(_isCFAv1(agreementClass), "RedirectAll: only CFAv1 supported");
         _;
     }
 

@@ -1,10 +1,10 @@
 //goerli addresses - change if using a different network
-const host = '0x22ff293e14F1EC3A09B137e9e06084AFd63adDF9';
-const cfa = '0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8';
-const fDAIx = '0xF2d68898557cCb2Cf4C10c3Ef2B034b2a69DAD00';
+const host = '0xeD5B5b32110c3Ded02a07c8b8e97513FAfb883B6';
+const cfa = '0xF4C5310E51F6079F601a5fb7120bC72a70b96e2A';
+const fDAIx = '0x745861AeD1EEe363b4AaA5F1994Be40b1e05Ff90';
 
 //your address here...
-const owner = "0x3F047877e6613676d50Bf001b383682aDAeBE463";
+const owner = "0x5966aa11c794893774a382d9a19743B8be6BFFd1";
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
   const { deploy } = deployments;
@@ -61,4 +61,4 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   });
   */
 };
-module.exports.tags = ["YourContract"];
+module.exports.tags = ["TradeableCashflowOption"];

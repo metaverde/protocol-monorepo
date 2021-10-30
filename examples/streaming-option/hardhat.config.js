@@ -1,4 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
+require('hardhat-deploy');
+
 require("dotenv").config();
 
 // This is a sample Hardhat task. To learn how to create your own go to
@@ -11,6 +13,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
   }
 });
 
+const defaultNetwork = "rinkeby"
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
 
@@ -18,6 +21,8 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
+  defaultNetwork,
+
   solidity: {
     version: "0.7.0",
     settings: {
@@ -28,10 +33,10 @@ module.exports = {
   },
 
   networks: {
-    goerli: {
-      url: `${process.env.GOERLI_ALCHEMY_URL}`,
-      gasPrice:  1000000000,
-      accounts: [`0x${process.env.GOERLI_DEPLOYER_PRIVATE_KEY}`]
+    rinkeby: {
+      url: `${process.env.RINKEBY_ALCHEMY_URL}`,
+      gasPrice:  1500000000,
+      accounts: [`0x${process.env.RINKEBY_DEPLOYER_PRIVATE_KEY}`]
       },
     },
     namedAccounts: {
@@ -39,4 +44,4 @@ module.exports = {
         default: 0, // here this will by default take the first account as deployer
       },
   }
-
+}
