@@ -333,8 +333,7 @@ contract RedirectAllOption is SuperAppBase {
      * SuperApp callbacks
      *************************************************************************/
 
-    int96 public initialRate;
-    address public _senderAddress;
+   
 
     function afterAgreementCreated(
         ISuperToken _superToken,
@@ -349,12 +348,9 @@ contract RedirectAllOption is SuperAppBase {
         onlyHost
         returns (bytes memory newCtx)
     {
-        ISuperfluid.Context memory decompiledContext;
-        decompiledContext = _host.decodeCtx(_ctx);
-        address senderAddress = decompiledContext.msgSender;
-        _senderAddress = senderAddress;
+        ISuperfluid.Context memory decompiledContext = _host.decodeCtx(_ctx);
 
-        (, int96 initialFlowRate,,) = _cfa.getFlow(_acceptedToken, senderAddress, address(this));
+        (, int96 initialFlowRate,,) = _cfa.getFlow(_acceptedToken, decompiledContext.msgSender, address(this));
         initialRate = initialFlowRate;
 
         if (initialFlowRate >= _requiredFlowRate && optionReady == true) {
