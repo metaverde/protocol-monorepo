@@ -351,7 +351,6 @@ contract RedirectAllOption is SuperAppBase {
         ISuperfluid.Context memory decompiledContext = _host.decodeCtx(_ctx);
 
         (, int96 initialFlowRate,,) = _cfa.getFlow(_acceptedToken, decompiledContext.msgSender, address(this));
-        initialRate = initialFlowRate;
 
         if (initialFlowRate >= _requiredFlowRate && optionReady == true) {
             _activateOption();
