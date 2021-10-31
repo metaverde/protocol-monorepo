@@ -134,16 +134,13 @@ contract RedirectAllOption is SuperAppBase {
         _requiredFlowRate = requiredFlowRate;
         _expirationDate = expirationDate;
         
-        //approve the transfer of the underlying asset into the contract 
-        _underlyingAsset.approve(address(this), _underlyingAmount);
-        
         optionReady = true;
-        
     }
     
     //activates the option - called in callbacks
     function _activateOption() internal {
         //send underlying assets to the contract 
+        //Receiver MUST approve contract to spend funds before the option is activated - would be another flow on front end
         _underlyingAsset.transferFrom(_receiver, address(this), _underlyingAmount);
         //set option as active 
         optionActive = true;
@@ -168,13 +165,13 @@ contract RedirectAllOption is SuperAppBase {
     
     //enables the caller to exercise the option 
     function exerciseOption() external {
+        require(_DAI.allowance(msg.sender, address(this)) >= uint(_strikePrice), "must call approve first");
         //start function by checking if option is expired - if it is, we need to deactivate the option
          if (block.timestamp >= _expirationDate) {
             //transfer underlying asset back to owner and cancel flows 
             _deactivateOption();
         }
         else {
-            
         //exercise the option        
         //get current price of the underlying asset using chainlink 
         (, int currentPrice,,,) = _priceFeed.latestRoundData();
@@ -188,7 +185,6 @@ contract RedirectAllOption is SuperAppBase {
                 //if _adjusted decimals is negative, adjust so that it's positive
                 _adjustedDecimals = -_adjustedDecimals;
             }
-
             currentPrice = int(uint(currentPrice) * (10 ** _adjustedDecimals));
             //need to use safemath on all of this shit
             // currentPrice = int(_currentPrice);
@@ -196,23 +192,19 @@ contract RedirectAllOption is SuperAppBase {
         //get flow rate of the flow that the caller of this function is sending to the contract 
         (, int96 currentFlowRate,,) = _cfa.getFlow(_acceptedToken, msg.sender, address(this));
         //require that flowRate is sufficient & option is in the money for option to be exercises
-        require(currentPrice >= _strikePrice);
-        require(currentFlowRate >= _requiredFlowRate);
+        require(currentPrice >= _strikePrice, "option out of the money");
+        require(currentFlowRate >= _requiredFlowRate, "insufficient flow rate");
         
-        //try approving dai here, then calling settle
-        _DAI.approve(address(this), uint256(_strikePrice));
+    
+        //NOTE - caller of this function MUST approve DAI first before calling this function
+        _DAI.transferFrom(msg.sender, _receiver, uint256(_strikePrice));
+        _underlyingAsset.transfer(msg.sender, _underlyingAmount);
 
-        _settleOption(msg.sender);        
+        optionActive = false;
+        optionReady = false;
         }
     }
 
-        function _settleOption(address _caller) internal {
-            _DAI.transferFrom(_caller, _receiver, uint256(_strikePrice));
-            _underlyingAsset.transfer(_caller, _underlyingAmount);
-
-             optionActive = false;
-             optionReady = false;
-        }
        
             
 
@@ -358,6 +350,8 @@ contract RedirectAllOption is SuperAppBase {
 
         if (initialFlowRate >= _requiredFlowRate && optionReady == true) {
             _activateOption();
+            // _underlyingAsset.transfer(address(this), _underlyingAmount);
+            // optionActive = true;
         }
         return _updateOutflow(_ctx);
     }
@@ -396,6 +390,7 @@ contract RedirectAllOption is SuperAppBase {
         return _updateOutflow(_ctx);
     }
 
+    //note - option is ineffective after termination clause is run
     function afterAgreementTerminated(
         ISuperToken _superToken,
         address _agreementClass,
