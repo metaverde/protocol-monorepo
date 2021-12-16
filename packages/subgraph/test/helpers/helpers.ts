@@ -6,8 +6,10 @@ import SuperfluidSDK from "@superfluid-finance/js-sdk";
 import { Framework } from "@superfluid-finance/js-sdk/src/Framework";
 import { IMeta, IIndexSubscription } from "../interfaces";
 import { FlowActionType } from "./constants";
+import IResolverABI from "../../abis/IResolver.json";
 import { ConstantFlowAgreementV1 } from "../../typechain/ConstantFlowAgreementV1";
 import { ConstantFlowAgreementV1Helper } from "@superfluid-finance/js-sdk/src/ConstantFlowAgreementV1Helper";
+import { Resolver } from "../../typechain";
 
 // the resolver address should be consistent as long as you use the
 // first account retrieved by hardhat's ethers.getSigners():
@@ -40,11 +42,12 @@ export const beforeSetup = async (tokenAmount: number) => {
     console.log("\n");
     await sf.initialize();
 
+    const daix = sf.tokens.fDAIx;
+
     // types not properly handling this case
     const dai = await (sf.contracts as any).TestToken.at(
-        sf.tokens.fDAI.address
+        daix.underlyingToken.address
     );
-    const daix = sf.tokens.fDAIx;
 
     console.log(
         "Mint fDAI, approve fDAIx allowance and upgrade fDAI to fDAIx for users..."
@@ -65,6 +68,21 @@ export const beforeSetup = async (tokenAmount: number) => {
         });
         totalSupply += Number(stringBigIntAmount);
     }
+    const resolver = (await ethers.getContractAt(
+        IResolverABI,
+        RESOLVER_ADDRESS
+    )) as Resolver;
+
+    // NOTE: although we already set this in initialization, we need to reset it here to ensure
+    // we wait for the indexer to catch up before the tests start
+    const txn = await resolver.set("supertokens.test.fDAIx", daix.address);
+    const receipt = await txn.wait();
+    await waitUntilBlockIndexed(receipt.blockNumber);
+    const resolverFDAIxAddress = await resolver.get("supertokens.test.fDAIx");
+
+    if (resolverFDAIxAddress !== daix.address) {
+        throw new Error("fDAIx not set properly in resolver.");
+    }
 
     console.log(
         "\n************** Superfluid Framework Setup Complete **************\n"
@@ -81,8 +99,9 @@ export const monthlyToSecondRate = (monthlyRate: number) => {
     return Math.round((monthlyRate / seconds) * 10 ** 18);
 };
 
+// NOTE: + 1 ensures that the flow rate is never 0
 export const getRandomFlowRate = (max: number) =>
-    Math.floor(Math.random() * max);
+    Math.floor(Math.random() * max) + 1;
 
 export const getCurrentBlockNumber = async () => {
     const query = gql`
@@ -185,12 +204,6 @@ export const getCurrentTotalAmountStreamed = (
 /**************************************************************************
  * Entity ID Getters
  *************************************************************************/
-
-export const getEventId = (receipt: ContractReceipt) => {
-    return (
-        receipt.transactionHash.toLowerCase() + "-" + receipt.transactionIndex
-    );
-};
 
 export const getStreamId = (
     sender: string,

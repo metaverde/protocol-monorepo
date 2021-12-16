@@ -27,34 +27,69 @@ try {
     );
 }
 
+const ALIASES = {
+    "eth-mainnet": ["mainnet"],
+    "eth-ropsten": ["ropsten"],
+    "eth-rinkeby": ["rinkeby"],
+    "eth-kovan": ["kovan"],
+    "eth-goerli": ["goerli"],
+
+    "xdai-mainnet": ["xdai"],
+
+    "polygon-mainnet": ["matic"],
+    "polygon-mumbai": ["mumbai"],
+
+    "optimism-mainnet": ["opmainnet"],
+    "optimism-kovan": ["opkovan"],
+
+    "arbitrum-one": ["arbone"],
+    "arbitrum-rinkeby": ["arbrinkeby"],
+
+    "avalanche-C": ["avalanche"],
+    "avalanche-fuji": ["avafuji"],
+
+    "bsc-mainnet": ["bsc"],
+
+    "celo-mainnet": ["celo"],
+};
+
 const DEFAULT_NETWORK_TIMEOUT = 60000;
 
-//
-// This is a hack to resolve that HDWallet doesn't work with openethereum (xdai & kovan)
-//
-// Related issues:
-// - https://github.com/trufflesuite/truffle/issues/3182
-// - https://github.com/openethereum/parity-ethereum/issues/11824
-// - https://github.com/MetaMask/web3-provider-engine/issues/311
-function createProviderForOpenEthereum(url) {
-    let provider;
-    const Web3WsProvider = require("web3-providers-ws");
-    if (url.startsWith("ws:") || url.startsWith("wss:")) {
-        provider = new Web3WsProvider(url);
-        // apply the skipCache hack
-        const origSend = provider.__proto__.send;
-        provider.__proto__.send = function (payload, callback) {
-            delete payload.skipCache;
-            origSend.call(provider, payload, callback);
-        };
-    } else {
-        // let hdwallet provider handle the url directly
-        provider = url;
-    }
-    return provider;
+/**
+ * Get the environment value for the network, supporting network aliases
+ *
+ * E.g. for MNEMONIC key, these environment keys are tried (high to low priority):
+ * ETH_MAINNET_MNEMONIC
+ * MAINNET_MNEMONIC
+ * DEFAULT_MNEMONIC,
+ */
+function getEnvValue(networkName, key) {
+    const keysToTry = [networkName, ...ALIASES[networkName]]
+        .map((i) => i.replace(/-/g, "_").toUpperCase() + "_" + key)
+        .concat("DEFAULT_" + key);
+    const values = keysToTry.map((i) => process.env[i]).filter((i) => !!i);
+    return values[0];
 }
 
-module.exports = {
+/**
+ * Create default network configurations
+ */
+function createNetworkDefaultConfiguration(networkName, chainId) {
+    return {
+        provider: () =>
+            new HDWalletProvider({
+                mnemonic: getEnvValue(networkName, "MNEMONIC"),
+                url: getEnvValue(networkName, "PROVIDER_URL"),
+                addressIndex: 0,
+                numberOfAddresses: 10,
+                shareNonce: true,
+                chainId, // optional
+            }),
+        gasPrice: +getEnvValue(networkName, "GAS_PRICE"),
+    };
+}
+
+const E = (module.exports = {
     plugins: [
         //"truffle-security",
         "solidity-coverage",
@@ -77,187 +112,161 @@ module.exports = {
         // tab if you use this network and you must also set the `host`, `port` and `network_id`
         // options below to some value.
 
-        rinkeby: {
-            provider: () =>
-                new HDWalletProvider(
-                    process.env.RINKEBY_MNEMONIC,
-                    process.env.RINKEBY_PROVIDER_URL,
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                ),
-            network_id: 4,
-            //gas: 8e6,
-            gasPrice: 10e9,
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        ropsten: {
-            provider: () =>
-                new HDWalletProvider(
-                    process.env.ROPSTEN_MNEMONIC,
-                    process.env.ROPSTEN_PROVIDER_URL,
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                ),
-            network_id: 3,
-            //gas: 7.9e6,
-            gasPrice: 10e9,
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        goerli: {
-            provider: () =>
-                new HDWalletProvider(
-                    process.env.GOERLI_MNEMONIC,
-                    process.env.GOERLI_PROVIDER_URL,
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                ),
-            network_id: 5,
-            //gas: 8e6,
-            gasPrice: +process.env.GOERLI_GAS_PRICE || 10e9,
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        kovan: {
-            provider: () => {
-                return new HDWalletProvider(
-                    process.env.KOVAN_MNEMONIC,
-                    createProviderForOpenEthereum(
-                        process.env.KOVAN_PROVIDER_URL
-                    ),
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                );
-            },
-            network_id: 42,
-            //gas: 8e6,
-            gasPrice: +process.env.KOVAN_GAS_PRICE || 10e9,
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        arbitrum: {
-            provider: function () {
-                return new HDWalletProvider(
-                    process.env.ARBITRUM_MNEMONIC,
-                    process.env.ARBITRUM_PROVIDER_URL,
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                );
-            },
-            network_id: "*",
-            //gas: 1e9, // arbgas is a different beast, 1G gas is normal
-            gasPrice: 0,
-        },
-
-        xdai: {
-            provider: () => {
-                return new HDWalletProvider(
-                    process.env.XDAI_MNEMONIC,
-                    createProviderForOpenEthereum(
-                        process.env.XDAI_PROVIDER_URL
-                    ),
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                );
-            },
-            network_id: 0x64,
-            //gas: 8e6,
-            gasPrice: +process.env.XDAI_GAS_PRICE || 10e9,
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        matic: {
-            provider: () => {
-                return new HDWalletProvider(
-                    process.env.MATIC_MNEMONIC,
-                    createProviderForOpenEthereum(
-                        process.env.MATIC_PROVIDER_URL
-                    ),
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                );
-            },
-            network_id: 137,
-            //gas: 8e6,
-            gasPrice: +process.env.MATIC_GAS_PRICE || 25e9,
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        mumbai: {
-            provider: () =>
-                new HDWalletProvider(
-                    process.env.MUMBAI_MNEMONIC,
-                    process.env.MUMBAI_PROVIDER_URL,
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                ),
-            network_id: 80001,
-            //gas: 8e6,
-            gasPrice: +process.env.MUMBAI_GAS_PRICE || 20e9,
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        artis_tau1: {
-            provider: () =>
-                new HDWalletProvider(
-                    process.env.ARTIS_MNEMONIC,
-                    process.env.ARTIS_PROVIDER_URL,
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                ),
-            network_id: 0x03c401, // artis tau1 network
-            //gas: 8e6,
-            gasPrice: +process.env.ARTIS_GAS_PRICE || 1e9, // default 1 gwei
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
-            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
-            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
-            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
-        },
-
-        mainnet: {
-            provider: () =>
-                new HDWalletProvider(
-                    process.env.MAINNET_MNEMONIC,
-                    process.env.MAINNET_PROVIDER_URL,
-                    0, //address_index
-                    10, // num_addresses
-                    true // shareNonce
-                ),
+        //
+        // ETHEREUM: https://ethereum.org/
+        //
+        "eth-mainnet": {
+            ...createNetworkDefaultConfiguration("eth-mainnet"),
             network_id: 1, // mainnet's id
-            //gas: 8e6,
-            gasPrice: +process.env.MAINNET_GAS_PRICE || 1e9, // default 1 gwei
-            //confirmations: 6, // # of confs to wait between deployments. (default: 0)
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "eth-rinkeby": {
+            ...createNetworkDefaultConfiguration("eth-rinkeby"),
+            network_id: 4,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "eth-ropsten": {
+            ...createNetworkDefaultConfiguration("eth-ropsten"),
+            network_id: 3,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "eth-goerli": {
+            ...createNetworkDefaultConfiguration("eth-goerli"),
+            network_id: 5,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "eth-kovan": {
+            ...createNetworkDefaultConfiguration("eth-kovan"),
+            network_id: 42,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        //
+        // Polygon: https://docs.polygon.technology/docs/develop/network-details/network/
+        //
+        "polygon-mainnet": {
+            ...createNetworkDefaultConfiguration("polygon-mainnet"),
+            network_id: 137,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "polygon-mumbai": {
+            ...createNetworkDefaultConfiguration("polygon-mumbai"),
+            network_id: 80001,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        //
+        // xDAI: https://www.xdaichain.com/for-users/wallets/metamask/metamask-setup
+        //
+        "xdai-mainnet": {
+            ...createNetworkDefaultConfiguration("xdai-mainnet"),
+            network_id: 100,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        //
+        // Optimistic Ethereum: https://community.optimism.io/docs/
+        //
+        "optimism-mainnet": {
+            ...createNetworkDefaultConfiguration("optimism-mainnet"),
+            network_id: 10,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "optimism-kovan": {
+            ...createNetworkDefaultConfiguration("optimism-kovan"),
+            network_id: 69,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        //
+        // Arbitrum: https://developer.offchainlabs.com
+        //
+        "arbitrum-one": {
+            ...createNetworkDefaultConfiguration("arbitrum-one"),
+            network_id: 42161,
+            gas: 250e6, // arbgas is different and estimation fails for expensive txs
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "arbitrum-rinkeby": {
+            ...createNetworkDefaultConfiguration("arbitrum-rinkeby"),
+            network_id: 421611,
+            gas: 250e6, // arbgas is different and estimation fails for expensive txs
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        //
+        // Avalanche C-Chain: https://docs.avax.network/learn/platform-overview#contract-chain-c-chain
+        //
+        "avalanche-C": {
+            ...createNetworkDefaultConfiguration(
+                "avalanche-C",
+                43114 /* chainId */
+            ),
+            network_id: 1,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        "avalanche-fuji": {
+            ...createNetworkDefaultConfiguration(
+                "avalanche-fuji",
+                43113 /* chainId */
+            ),
+            network_id: 1,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        //
+        // Binance Smart Chain: https://docs.binance.org/smart-chain/developer/rpc.html
+        //
+        "bsc-mainnet": {
+            ...createNetworkDefaultConfiguration("bsc-mainnet"),
+            network_id: 56,
+            timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
+            skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
+            networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
+        },
+
+        //
+        // Celo: https://docs.celo.org/getting-started/choosing-a-network
+        //
+        "celo-mainnet": {
+            ...createNetworkDefaultConfiguration("celo-mainnet"),
+            network_id: 42220,
             timeoutBlocks: 50, // # of blocks before a deployment times out  (minimum/default: 50)
             skipDryRun: false, // Skip dry run before migrations? (default: false for public nets )
             networkCheckTimeout: DEFAULT_NETWORK_TIMEOUT,
@@ -349,5 +358,14 @@ module.exports = {
     api_keys: {
         etherscan: process.env.ETHERSCAN_API_KEY,
         polygonscan: process.env.POLYGONSCAN_API_KEY,
+        snowtrace: process.env.SNOWTRACE_API_KEY,
+        bscscan: process.env.BSCSCAN_API_KEY,
     },
-};
+});
+
+// Creating network aliases
+Object.keys(ALIASES).forEach((networkName) => {
+    ALIASES[networkName].forEach((alias) => {
+        E.networks[alias] = E.networks[networkName];
+    });
+});

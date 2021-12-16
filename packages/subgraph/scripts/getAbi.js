@@ -3,12 +3,14 @@ const path = require("path");
 
 const contracts = [
     "IConstantFlowAgreementV1",
+    "IResolver",
     "ISuperTokenFactory",
     "ISuperToken",
     "ISuperfluid",
-    "TestResolver",
+    "Resolver",
     "IInstantDistributionAgreementV1",
     "SuperfluidGovernanceBase",
+    "TestToken",
 ];
 
 const directoryPath = path.join(

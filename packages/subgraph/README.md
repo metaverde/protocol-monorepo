@@ -27,6 +27,18 @@ https://docs.superfluid.finance/superfluid/docs/subgraph
 
 All subgraphs are available via The Graph's hosted service:
 
+**V1 Endpoints**
+| Network | URL |
+| --- | --- |
+| xDAI| https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-v1-xdai |
+| Matic | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-v1-matic |
+| Mumbai | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-v1-mumbai |
+| Goerli| https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-v1-goerli |
+| Ropsten | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-v1-ropsten |
+| Kovan | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-v1-kovan |
+| Rinkeby | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-v1-rinkeby |
+
+**Legacy Endpoints**
 | Network | URL |
 | --- | --- |
 | xDAI| https://thegraph.com/explorer/subgraph/superfluid-finance/superfluid-xdai |
@@ -36,6 +48,20 @@ All subgraphs are available via The Graph's hosted service:
 | Ropsten | https://thegraph.com/explorer/subgraph/superfluid-finance/superfluid-ropsten |
 | Kovan | https://thegraph.com/explorer/subgraph/superfluid-finance/superfluid-kovan |
 | Rinkeby | https://thegraph.com/explorer/subgraph/superfluid-finance/superfluid-rinkeby |
+
+**Development Endpoints**
+| Network | URL |
+| --- | --- |
+| xDAI| https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-dev-xdai |
+| Matic | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-dev-matic |
+| Mumbai | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-dev-mumbai |
+| Goerli| https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-dev-goerli |
+| Ropsten | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-dev-ropsten |
+| Kovan | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-dev-kovan |
+| Rinkeby | https://thegraph.com/explorer/subgraph/superfluid-finance/protocol-dev-rinkeby |
+
+*Note: Development endpoints will include features that are still in progress. Documentation will not reflect new features yet to be released in V1
+
 
 # 🤓 Local development
 
@@ -136,7 +162,7 @@ ip a | grep docker | grep inet
 Try changing the line in the docker-compose using the output above
 
 ```
-ethereum: 'ganache:http://172.17.0.1:8545'
+ethereum: 'mainnet:http://172.17.0.1:8545'
 ```
 
 ## Deploy the contracts to Ganache
@@ -147,6 +173,13 @@ Open your third terminal window and navigate to the **root of the repo** and run
 
 ```bash
 yarn build
+```
+
+This is also a good time to generate the typechain folder used throughout the tests, go into the `packages/ethereum-contracts` directory and call: 
+```bash
+yarn install
+yarn run generate-ethers-types
+mv typechain ../subgraph
 ```
 
 Now come back here in `packages/subgraph` and run the following command to deploy contracts:
@@ -163,7 +196,7 @@ Once the contracts and token have been deployed, you can run the following one l
 
 ```bash
 # To build and deploy the Subgraph in a single line:
-yarn prepare-local && yarn set-network-local && yarn getAbi && yarn codegen && yarn create-local && yarn deploy-local
+yarn prepare-local && yarn set-network-local && yarn getAbi && yarn generate-sf-meta-local && yarn codegen && yarn create-local && yarn deploy-local
 
 # Step by step
 # Generate `subgraph.yaml` using the test-subgraph.template.yaml
@@ -174,6 +207,9 @@ yarn set-network-local
 
 # Get the ABIs
 yarn getAbi
+
+# Generate the SFMeta file (this is used internally for to generate an internally used entity in prod, but still necessary for building/deploying the subgraph)
+yarn generate-sf-meta-local
 
 # Generate the subgraph schema
 yarn codegen
@@ -212,6 +248,8 @@ If you are continuing from the previous steps, you can immediately run the tests
 ```bash
 npx hardhat test --network localhost
 ```
+
+> Note: If you get an error complaining about workspaces requiring an array, delete the workspaces property in the subgraph folder's package.json.
 
 This goes over an integration tests which test that the data we are mapping to the subgraph is expected given the inputs for creating a flow, index, subscription, etc. If you're interested in learning about how the test code is structured, you can click [here](#test-structure) to learn more.
 
@@ -345,6 +383,20 @@ graph auth https://api.thegraph.com/deploy/ <ACCESS_TOKEN>
 ```
 
 If the subgraph has not been created yet, you must create it first using the dashboard.
+
+## Release Process
+
+- Bump minor or patch version for the subgraph package: `yarn manage-versions && git commit packages/subgraph/package.json`.
+- Select the appropriate Subgraph LTS branch: `release-subgraph-v1`.
+- Merge `origin/dev` to the LTS branch.
+- Create a new release in github.
+
+## Developer Notes
+
+When adding new networks, we must do the following:
+- Add the new network to `networks.json` and add a new file to `/config` with the same name as the network e.g. adding network `avalanche-fuji` to the array in `networks.json` and then adding `avalanche-fuji.json` to `/config`. The name of the network here is dicated by and must match how we name the network for our subgraph endpoint, e.g. `protocol-dev-avalanche-fuji`
+- The name of the network in the `/config` json file should match the official naming of the network name from the [subgraph docs](https://thegraph.com/docs/developer/create-subgraph-hosted#supported-networks)
+- Therefore, the `network` we are comparing in the `addresses.template.test` file should also match the official naming.
 
 # Contributing
 
